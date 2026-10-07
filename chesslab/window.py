@@ -1206,7 +1206,7 @@ class MainWindow(QMainWindow):
             f"<b>ChessLab {__version__}</b><br><br>"
             "A custom board with Stockfish analysis.<br>"
             "Qt6 via PySide6, rules and UCI via python-chess.<br><br>"
-            f"Data is stored in <code>~/.local/share/chesslab</code>.",
+            f"Data is stored in <code>{storage.DATA_DIR}</code>.",
         )
 
     # --- engine signals --------------------------------------------------

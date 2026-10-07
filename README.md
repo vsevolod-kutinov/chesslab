@@ -56,6 +56,16 @@ over-the-board tournaments.
 
 ## Installation
 
+### Windows
+
+Download `ChessLab-windows.zip` from
+[Releases](https://github.com/vsevolod-kutinov/chesslab/releases), unpack it
+anywhere and run `ChessLab.exe`. Stockfish is included. Windows may warn that
+the app is from an unknown publisher (it is not code-signed): choose
+“More info → Run anyway”. Data is kept in `%APPDATA%\ChessLab`.
+
+### From source (Linux and others)
+
 Requirements: Python 3, Qt6 via PySide6, [python-chess](https://python-chess.readthedocs.io/),
 and a UCI engine — [Stockfish](https://stockfishchess.org/download/).
 
@@ -83,7 +93,8 @@ Developed and tested on Linux (Python 3.14, PySide6 6.11).
 
 ## Data
 
-Everything is stored locally in `~/.local/share/chesslab/`:
+Everything is stored locally in `~/.local/share/chesslab/`
+(`%APPDATA%\ChessLab` on Windows):
 `games.sqlite3` (games, analysis, tournaments) and `accounts.json`
 (account list, mode 600). Nothing is sent anywhere except requests to
 Lichess, Chess.com, FIDE and chess-results for the data you ask for.

@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
-DATA_DIR = Path(
-    os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
-) / "chesslab"
+
+def _data_dir() -> Path:
+    if sys.platform == "win32":
+        root = os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming"
+        return Path(root) / "ChessLab"
+    return Path(
+        os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+    ) / "chesslab"
+
+
+DATA_DIR = _data_dir()
 
 ACCOUNTS_FILE = DATA_DIR / "accounts.json"
 
@@ -43,6 +52,22 @@ def save_accounts(accounts: list[dict]) -> None:
     # the file may hold tokens - only the owner should be able to read it
     os.chmod(tmp, 0o600)
     tmp.replace(ACCOUNTS_FILE)
+
+
+def load_settings() -> dict:
+    """Small app settings; computed path: tests override DATA_DIR."""
+    try:
+        data = json.loads((DATA_DIR / "settings.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_settings(settings: dict) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    (DATA_DIR / "settings.json").write_text(
+        json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def fill_account_box(box, accounts: list[dict]) -> None:
