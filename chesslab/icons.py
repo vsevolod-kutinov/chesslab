@@ -53,3 +53,20 @@ def nav_icon(kind: str) -> QIcon:
             icon.addPixmap(pixmap, mode)
     return icon
 
+
+
+def side_icon(white: bool) -> QIcon:
+    """A piece-coloured dot: which side the player had."""
+    icon = QIcon()
+    for scale in (1, 2):
+        pixmap = QPixmap(12 * scale, 12 * scale)
+        pixmap.setDevicePixelRatio(scale)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(theme.TEXT_MUTED)
+        painter.setBrush(theme.EVAL_WHITE if white else theme.BG)
+        painter.drawEllipse(QRectF(1.5, 1.5, 9, 9))
+        painter.end()
+        icon.addPixmap(pixmap)
+    return icon

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import games_db, storage, theme
+from .icons import side_icon
 
 SPEEDS = [("", "any time control"), ("bullet", "bullet"), ("blitz", "blitz"),
           ("rapid", "rapid"), ("classical", "classical"),
@@ -39,9 +40,12 @@ SERVICE_TEXT = {"lichess": "Lichess", "chess.com": "Chess.com", "otb": "tourname
 SERVICE_FILTER = [("", "all sites"), ("lichess", "Lichess"),
                   ("chess.com", "Chess.com"), ("otb", "tournaments")]
 
-HEADERS = ["Date", "Site", "Color", "Opponent", "Result", "Time control", "Opening"]
+HEADERS = ["Date", "Result", "Color", "Opponent", "Rating", "Time control", "Opening", "Site"]
 OPENING_COLUMN = 6
-CENTERED = {1, 2, 4, 5}
+CENTERED = {1, 5}
+RIGHT = {4}
+LEFT_HEADERS = {0, 2, 3, 6, 7}
+RESULT_COLORS = {"win": theme.SCORE_GOOD, "loss": theme.SCORE_BAD, "draw": theme.TEXT_MUTED}
 
 
 class GamesDialog(QDialog):
@@ -50,7 +54,7 @@ class GamesDialog(QDialog):
     def __init__(self, parent: QWidget | None = None, initial_search: str = "") -> None:
         super().__init__(parent)
         self.setWindowTitle("My Games")
-        self.resize(1000, 620)
+        self.resize(1120, 660)
         self.setStyleSheet(theme.QSS)
 
         self.conn = games_db.connect()
@@ -74,14 +78,21 @@ class GamesDialog(QDialog):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(10)
+        margin = theme.gap(4)
+        layout.setContentsMargins(margin, margin, margin, margin)
+        layout.setSpacing(theme.gap(2))
 
         layout.addLayout(self._build_top_row())
         layout.addLayout(self._build_filter_row())
 
         self.table = QTableWidget(0, len(HEADERS))
+        self.table.setObjectName("lines")  # row separators instead of a full grid
+        self.table.setShowGrid(False)
         self.table.setHorizontalHeaderLabels(HEADERS)
+        for column in LEFT_HEADERS:
+            self.table.horizontalHeaderItem(column).setTextAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            )
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -226,6 +237,9 @@ class GamesDialog(QDialog):
         )
 
     def _fill_table(self) -> None:
+        tabular = theme.tabular(self.table.font())
+        bold = theme.tabular(self.table.font(), bold=True)
+        white_icon, black_icon = side_icon(True), side_icon(False)
         self.table.setUpdatesEnabled(False)
         self.table.setRowCount(len(self.rows))
         for index, game in enumerate(self.rows):
@@ -236,21 +250,34 @@ class GamesDialog(QDialog):
             opponent_elo = game["black_elo"] if white_is_owner else game["white_elo"]
             service = game["service"] or ""
 
+            outcome = outcome_text(game["winner"], white_is_owner)
             cells = [
                 format_date(game["played_at"]),
-                SERVICE_TEXT.get(service, "—"),
+                outcome,
                 "White" if white_is_owner else "Black",
-                f"{opponent} ({opponent_elo})" if opponent_elo else str(opponent),
-                outcome_text(game["winner"], white_is_owner),
+                str(opponent),
+                str(opponent_elo) if opponent_elo else "",
                 dict(SPEEDS).get(game["speed"], game["speed"]),
                 f'{game["eco"]} {game["opening"]}'.strip(),
+                SERVICE_TEXT.get(service, "—"),
             ]
             for column, text in enumerate(cells):
                 item = QTableWidgetItem(text)
                 if column in CENTERED:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if column == 1 and service in theme.SERVICE_COLORS:
-                    item.setForeground(theme.SERVICE_COLORS[service])
+                elif column in RIGHT:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight
+                                          | Qt.AlignmentFlag.AlignVCenter)
+                if column == 2:
+                    item.setIcon(white_icon if white_is_owner else black_icon)
+                elif column == 1:
+                    item.setForeground(RESULT_COLORS[outcome])
+                    item.setFont(bold)
+                elif column in (0, 4):
+                    item.setFont(tabular)
+                    item.setForeground(theme.TEXT_MUTED)
+                elif column == 7:
+                    item.setForeground(theme.TEXT_MUTED)
                 self.table.setItem(index, column, item)
         self.table.setUpdatesEnabled(True)
         for column in range(len(HEADERS)):
