@@ -391,7 +391,7 @@ def insights(analysis: dict) -> list[dict]:
     doubles = [i + 1 for i in range(len(colors) - 1) if colors[i] == colors[i + 1]]
     if doubles:
         pretty = colors
-        add("Colours",
+        add("Colors",
             f'{pretty} - {colors.count("W")} White, {colors.count("B")} Black. '
             f'Same colour twice in a row in rounds: '
             + ", ".join(f"{n}–{n + 1}" for n in doubles) + ".")

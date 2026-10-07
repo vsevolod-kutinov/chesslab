@@ -486,7 +486,7 @@ class _Table(QWidget):
 
 
 class _Games(_Table):
-    HEADERS = ["Round", "Board", "Colour", "Opponent", "Rating", "Counted",
+    HEADERS = ["Round", "Board", "Color", "Opponent", "Rating", "Counted",
                "Point", "Opponent finish"]
     STRETCH = 3
 
@@ -605,7 +605,7 @@ def markdown(analysis: dict, notes: list[dict]) -> str:
         "",
         "## Games",
         "",
-        "| Round | Board | Colour | Opponent | Rating | Point | Opponent finish |",
+        "| Round | Board | Color | Opponent | Rating | Point | Opponent finish |",
         "|---|---|---|---|---|---|---|",
     ]
     for entry in analysis["rounds"]:

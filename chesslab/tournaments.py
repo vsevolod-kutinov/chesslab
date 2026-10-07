@@ -587,8 +587,9 @@ class ReportDialog(QDialog):
         layout.addWidget(games_label)
 
         self.games_table = _table(
-            ["Round", "Colour", "Opponent", "Rating", "Point", "Opening"], stretch=5
+            ["Round", "Color", "Opponent", "Rating", "Point", "Opening"], stretch=5
         )
+        theme.left_header(self.games_table, 2)
         self.games_table.doubleClicked.connect(self._open_selected)
         layout.addWidget(self.games_table, 3)
 
@@ -605,8 +606,10 @@ class ReportDialog(QDialog):
                            ("Delete", self.delete_game)):
             button = QPushButton(text)
             button.clicked.connect(slot)
+            if slot == self.delete_game:
+                button.setObjectName("danger")
+                buttons.addStretch(1)
             buttons.addWidget(button)
-        buttons.addStretch(1)
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)
         buttons.addWidget(close_button)
@@ -686,6 +689,9 @@ class ReportDialog(QDialog):
                 _cell(opening, muted=True),
             ]
             cells[4].setToolTip(mark)
+            cells[4].setForeground({"win": theme.SCORE_GOOD, "loss": theme.SCORE_BAD,
+                                    "draw": theme.TEXT_MUTED}[mark])
+            cells[4].setFont(theme.tabular(self.font(), bold=True))
             for column, item in enumerate(cells):
                 self.games_table.setItem(index, column, item)
 

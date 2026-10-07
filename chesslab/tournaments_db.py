@@ -105,7 +105,10 @@ def get(conn: sqlite3.Connection, tournament_id: int) -> sqlite3.Row | None:
 
 def games(conn: sqlite3.Connection, tournament_id: int) -> list[sqlite3.Row]:
     return list(conn.execute(
-        "SELECT * FROM games WHERE tournament_id = ? ORDER BY played_at, id",
+        # by round number: games are often entered out of order after the event
+        "SELECT * FROM games WHERE tournament_id = ? ORDER BY "
+        "CASE WHEN round GLOB '[0-9]*' THEN CAST(round AS INTEGER) ELSE 9999 END, "
+        "played_at, id",
         (tournament_id,),
     ))
 

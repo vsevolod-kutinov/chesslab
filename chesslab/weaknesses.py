@@ -31,7 +31,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
     QPushButton,
-    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -299,10 +298,12 @@ class WeaknessDialog(QDialog):
         controls = QHBoxLayout()
         controls.setSpacing(theme.gap(1))
         controls.addWidget(QLabel("at least"))
-        self.min_games_box = QSpinBox()
-        self.min_games_box.setRange(1, 999)
-        self.min_games_box.setValue(5)
-        self.min_games_box.valueChanged.connect(self.reload)
+        # a combo, not a QSpinBox: its unstyled arrows look dirty on the dark theme
+        self.min_games_box = QComboBox()
+        for count in (2, 3, 5, 10, 20, 50):
+            self.min_games_box.addItem(f"{count} games", count)
+        self.min_games_box.setCurrentIndex(2)
+        self.min_games_box.currentIndexChanged.connect(self.reload)
         controls.addWidget(self.min_games_box)
         controls.addStretch(1)
 
@@ -417,7 +418,7 @@ class WeaknessDialog(QDialog):
 
         self.spot_rows = weakspots.spots(
             self.conn, account, plies=PLIES, speed=speed, color=color,
-            min_games=self.min_games_box.value(),
+            min_games=self.min_games_box.currentData(),
         )
         self._fill_spots_table()
         self._update_spot_status()
