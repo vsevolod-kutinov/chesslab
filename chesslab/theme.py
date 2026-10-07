@@ -7,6 +7,7 @@ clearly - in a dark theme depth is only readable through lightness.
 
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 
 ASSETS = Path(__file__).parent / "assets"
@@ -74,6 +75,14 @@ SPACE = 4
 
 def gap(steps: int) -> int:
     return SPACE * steps
+
+
+def left_header(table, *columns: int) -> None:
+    """Text columns get a left-aligned header, so it sits over the text."""
+    for column in columns:
+        table.horizontalHeaderItem(column).setTextAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
 
 
 def tabular(font: QFont, size: float | None = None, bold: bool = False) -> QFont:
@@ -153,6 +162,8 @@ QPushButton#primary {
     color: #ece9e2;
     font-weight: 600;
 }
+QPushButton#danger { color: #e08b6a; }
+QPushButton#danger:hover { border-color: #e08b6a; }
 QPushButton#primary:hover   { background: #465935; }
 QPushButton#primary:pressed { background: #303d24; }
 
@@ -302,7 +313,8 @@ QListWidget::item { padding: 5px 8px; }
 QListWidget::item:hover    { background: #262319; }
 QListWidget::item:selected { background: #3b4a2d; color: #ffffff; }
 
-QTableWidget { gridline-color: #262319; }
+/* outline: 0 — no dotted focus box around the current cell */
+QTableWidget { gridline-color: #262319; outline: 0; }
 QTableWidget::item { padding: 6px 8px; }
 QTableWidget::item:hover    { background: #262319; }
 QTableWidget::item:selected { background: #3b4a2d; color: #ffffff; }

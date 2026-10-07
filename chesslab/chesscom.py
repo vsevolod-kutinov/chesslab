@@ -130,7 +130,7 @@ def summary(account: dict) -> str:
     rate = ratings(account.get("profile") or {})
     if not rate:
         return name
-    parts = " · ".join(f"{k[:3]} {v}" for k, v in rate.items())
+    parts = " · ".join(f"{k} {v}" for k, v in rate.items())
     return f"{name}   {parts}"
 
 

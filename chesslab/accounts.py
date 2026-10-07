@@ -41,6 +41,7 @@ class AccountsDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Accounts")
+        self.resize(600, 500)  # the Chess.com line lists up to four ratings
         self.setMinimumSize(460, 430)
         self.setStyleSheet(theme.QSS)
 
@@ -106,11 +107,13 @@ class AccountsDialog(QDialog):
         self.refresh_button.clicked.connect(self.refresh_account)
         buttons.addWidget(self.refresh_button)
 
+        buttons.addStretch(1)
+
+        # destructive: kept apart from the everyday buttons
         self.remove_button = QPushButton("Remove")
+        self.remove_button.setObjectName("danger")
         self.remove_button.clicked.connect(self.remove_account)
         buttons.addWidget(self.remove_button)
-
-        buttons.addStretch(1)
 
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)

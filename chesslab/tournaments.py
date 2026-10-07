@@ -53,6 +53,7 @@ def _table(headers: list[str], stretch: int) -> QTableWidget:
     table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     table.setShowGrid(False)
+    theme.left_header(table, stretch)
     header = table.horizontalHeader()
     for index in range(len(headers)):
         header.setSectionResizeMode(
@@ -774,6 +775,7 @@ class TournamentsDialog(QDialog):
             ["Tournament", "Category", "Date", "City", "Games", "Points", "Place"],
             stretch=0,
         )
+        theme.left_header(self.table, 3)
         self.table.doubleClicked.connect(self.show_report)
         self.table.currentCellChanged.connect(lambda *_: self._update_buttons())
         layout.addWidget(self.table, 1)
@@ -788,9 +790,12 @@ class TournamentsDialog(QDialog):
                            ("Delete", self.delete_tournament)):
             button = QPushButton(text)
             button.clicked.connect(slot)
+            if slot == self.delete_tournament:
+                # destructive: kept apart from the everyday buttons
+                button.setObjectName("danger")
+                top.addStretch(1)
             top.addWidget(button)
             setattr(self, f"_btn_{slot.__name__}", button)
-        top.addStretch(1)
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)
         top.addWidget(close_button)
