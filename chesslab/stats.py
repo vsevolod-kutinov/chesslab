@@ -1,8 +1,13 @@
-"""Lichess statistics: ratings, streaks, best wins, rating chart."""
+"""Account statistics: ratings, streaks, best wins, rating chart.
+
+Lichess has a detailed per-mode endpoint. Chess.com only gives current and
+best rating plus the win/draw/loss record, so streaks, best wins and the
+average opponent are computed from the games in the local database.
+"""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
@@ -19,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import games_db, lichess, storage, theme
+from . import chesscom, games_db, lichess, storage, theme
 from .rating import RatingChart
 
 # modes shown; Lichess key -> label
@@ -37,6 +42,53 @@ def _duration(seconds: int) -> str:
     return f"{minutes} min"
 
 
+def _day(epoch: int | None) -> str:
+    return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d") if epoch else ""
+
+
+def _is_chesscom(account: dict | None) -> bool:
+    return bool(account) and account.get("service") == "chess.com"
+
+
+def local_details(rows, username: str) -> list[tuple[str, str]]:
+    """What the database can tell about a mode: streaks, best wins, opponents.
+
+    rows — the owner's games of one mode, any order.
+    """
+    me = username.lower()
+    games = []
+    for row in sorted(rows, key=lambda r: r["played_at"]):
+        white = (row["white"] or "").lower() == me
+        winner = row["winner"] or ""
+        points = 0.5 if not winner else (1.0 if (winner == "white") == white else 0.0)
+        opponent = row["black"] if white else row["white"]
+        op_rating = row["black_elo"] if white else row["white_elo"]
+        # played_at is in milliseconds, the Chess.com API in seconds
+        games.append((row["played_at"] // 1000, points, opponent, op_rating))
+    if not games:
+        return []
+
+    out: list[tuple[str, str]] = []
+    rated = [g[3] for g in games if g[3]]
+    if rated:
+        out.append(("Average opponent", f"{sum(rated) / len(rated):.0f}"))
+
+    for target, label in ((1.0, "Win streak"), (0.0, "Loss streak")):
+        best = run = 0
+        best_end = None
+        for when, points, *_ in games:
+            run = run + 1 if points == target else 0
+            if run > best:
+                best, best_end = run, when
+        if best > 1:
+            out.append((label, f"{best} in a row   ·   until {_day(best_end)}"))
+
+    wins = sorted((g for g in games if g[1] == 1.0 and g[3]), key=lambda g: -g[3])
+    for when, _, opponent, op_rating in wins[:5]:
+        out.append(("Win against", f"{opponent} ({op_rating})   ·   {_day(when)}"))
+    return out
+
+
 def _when(stamp: str | None) -> str:
     if not stamp:
         return ""
@@ -49,15 +101,17 @@ def _when(stamp: str | None) -> str:
 class StatsDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Lichess Statistics")
+        self.setWindowTitle("Statistics")
         self.resize(760, 700)
         self.setStyleSheet(theme.QSS)
 
         self.conn = games_db.connect()
-        # this window is about Lichess: Chess.com has different endpoints and streaks
-        self.accounts = [a for a in storage.load_accounts()
-                         if a.get("service", "lichess") == "lichess"]
-        self._lookup: lichess.PerfLookup | None = None
+        # saving writes back the whole list: saving only the filtered one
+        # used to drop every other account from accounts.json
+        self._all_accounts = storage.load_accounts()
+        self.accounts = [a for a in self._all_accounts
+                         if a.get("service", "lichess") in ("lichess", "chess.com")]
+        self._lookup = None  # lichess.PerfLookup or chesscom.UserLookup
 
         self._build_ui()
         self.reload()
@@ -133,7 +187,7 @@ class StatsDialog(QDialog):
         self.perf_box.currentIndexChanged.connect(self.reload)
         row.addWidget(self.perf_box)
 
-        self.refresh_button = QPushButton("Refresh from Lichess")
+        self.refresh_button = QPushButton("Refresh")
         self.refresh_button.setObjectName("primary")
         self.refresh_button.clicked.connect(self.fetch)
         row.addWidget(self.refresh_button)
@@ -156,12 +210,20 @@ class StatsDialog(QDialog):
         account = self.current_account()
         if account is None:
             self.headline.setText("—")
-            self.subline.setText("Add a Lichess account: menu “Accounts → Lichess and Chess.com…”")
+            self.subline.setText("Add an account: menu “Accounts → Lichess and Chess.com…”")
             self.refresh_button.setEnabled(False)
             return
 
         perf = self.perf_box.currentData()
+        site = storage.service_name(account)
+        self.refresh_button.setToolTip(f"Fetch fresh data from {site}")
         self._show_local(account, perf)
+
+        if _is_chesscom(account):
+            self._fill_chesscom(account, perf)
+            checked = account.get("checked")
+            self.status.setText(f"data from Chess.com as of {_when(checked)}" if checked else "")
+            return
 
         cached = (account.get("perf_stats") or {}).get(perf)
         if cached:
@@ -173,16 +235,14 @@ class StatsDialog(QDialog):
         else:
             self.table.setRowCount(0)
             self.status.setText(
-                "Press “Refresh from Lichess” to fetch streaks, "
+                "Press “Refresh” to fetch streaks, "
                 "best wins and world rank."
             )
 
     def _show_local(self, account: dict, perf: str) -> None:
         """What can be shown without network — from the profile and our own database."""
         username = account["username"]
-        entry = ((account.get("profile") or {}).get("perfs") or {}).get(perf) or {}
-        rating = entry.get("rating")
-        games = entry.get("games") or 0
+        rating, games = self._site_rating(account, perf)
 
         self.headline.setText(str(rating) if rating else "—")
 
@@ -198,13 +258,72 @@ class StatsDialog(QDialog):
         losses = total - wins - draws
         score = (wins + draws / 2) / total * 100 if total else 0
 
-        parts = [f"{games} games on Lichess"]
+        parts = [f"{games} games on {storage.service_name(account)}"]
         if total:
             parts.append(f"in database {total}: +{wins} ={draws} −{losses}")
             parts.append(f"{score:.1f}% score")
         self.subline.setText("   ·   ".join(parts))
 
         self.chart.set_points(games_db.rating_series(self.conn, username, perf))
+
+    @staticmethod
+    def _site_rating(account: dict, perf: str) -> tuple[int | None, int]:
+        """Current rating and number of games in a mode, from the cached profile."""
+        profile = account.get("profile") or {}
+        if _is_chesscom(account):
+            key = next((k for k, v in chesscom.PERFS.items() if v == perf), "")
+            entry = (profile.get("stats") or {}).get(key) or {}
+            record = entry.get("record") or {}
+            games = sum(record.get(k, 0) for k in ("win", "draw", "loss"))
+            return (entry.get("last") or {}).get("rating"), games
+        entry = (profile.get("perfs") or {}).get(perf) or {}
+        return entry.get("rating"), entry.get("games") or 0
+
+    def _fill_chesscom(self, account: dict, perf: str) -> None:
+        profile = account.get("profile") or {}
+        stats = profile.get("stats") or {}
+        key = next((k for k, v in chesscom.PERFS.items() if v == perf), "")
+        entry = stats.get(key) or {}
+        rows: list[tuple[str, str]] = []
+
+        last = entry.get("last") or {}
+        if last.get("rating"):
+            rd = f' ±{last["rd"]}' if last.get("rd") else ""
+            rows.append(("Current rating", f'{last["rating"]}{rd}   ·   {_day(last.get("date"))}'))
+        best = entry.get("best") or {}
+        if best.get("rating"):
+            rows.append(("Best rating", f'{best["rating"]}   ·   {_day(best.get("date"))}'))
+
+        record = entry.get("record") or {}
+        total = sum(record.get(k, 0) for k in ("win", "draw", "loss"))
+        if total:
+            rows.append(("Games played", str(total)))
+            rows.append((
+                "Wins / draws / losses",
+                f'{record.get("win", 0)} / {record.get("draw", 0)} / {record.get("loss", 0)}'
+                f'   ·   {record.get("win", 0) / total * 100:.0f}% wins',
+            ))
+        if record.get("time_per_move"):
+            rows.append(("Time per move", _duration(record["time_per_move"])))
+        if "timeout_percent" in record:
+            rows.append(("Timeouts", f'{record["timeout_percent"]}%'))
+
+        played = games_db.search(self.conn, account=account["username"], speed=perf,
+                                 service="chess.com", limit=99999)
+        rows += local_details(played, account["username"])
+
+        tactics = (stats.get("tactics") or {}).get("highest") or {}
+        if tactics.get("rating"):
+            rows.append(("Puzzles, highest", f'{tactics["rating"]}   ·   {_day(tactics.get("date"))}'))
+        rush = (stats.get("puzzle_rush") or {}).get("best") or {}
+        if rush.get("score"):
+            rows.append(("Puzzle Rush, best", str(rush["score"])))
+        if profile.get("joined"):
+            rows.append(("On Chess.com since", _day(profile["joined"])))
+
+        if not rows:
+            rows.append(("", "No games in this mode on Chess.com."))
+        self._show_rows(rows)
 
     def _fill_details(self, data: dict) -> None:
         stat = data.get("stat") or {}
@@ -253,6 +372,9 @@ class StatsDialog(QDialog):
                 f'{name} ({win.get("opRating", "?")})   ·   {_when(win.get("at"))}',
             ))
 
+        self._show_rows(rows)
+
+    def _show_rows(self, rows: list[tuple[str, str]]) -> None:
         self.table.setRowCount(len(rows))
         for index, (label, value) in enumerate(rows):
             key_item = QTableWidgetItem(label)
@@ -271,10 +393,18 @@ class StatsDialog(QDialog):
         if account is None or self._lookup is not None:
             return
         perf = self.perf_box.currentData()
-
         self.refresh_button.setEnabled(False)
-        self.status.setText(f"Asking Lichess about {self.perf_box.currentText()}…")
 
+        if _is_chesscom(account):
+            # one request brings every mode at once
+            self.status.setText("Asking Chess.com…")
+            self._lookup = chesscom.UserLookup()
+            self._lookup.found.connect(self._on_chesscom_found)
+            self._lookup.failed.connect(self._on_failed)
+            self._lookup.start(account["username"])
+            return
+
+        self.status.setText(f"Asking Lichess about {self.perf_box.currentText()}…")
         self._lookup = lichess.PerfLookup()
         self._lookup.found.connect(self._on_found)
         self._lookup.failed.connect(self._on_failed)
@@ -290,13 +420,23 @@ class StatsDialog(QDialog):
         account.setdefault("perf_checked", {})[perf] = datetime.now().isoformat(
             timespec="seconds"
         )
-        storage.save_accounts(self.accounts)
+        storage.save_accounts(self._all_accounts)
 
         self._fill_details(data)
         glicko = (data.get("perf") or {}).get("glicko") or {}
         if glicko.get("rating"):
             self.headline.setText(f'{glicko["rating"]:.0f}')
         self._finish()
+        self.status.setText("updated")
+
+    @Slot(dict)
+    def _on_chesscom_found(self, profile: dict) -> None:
+        account = self.current_account()
+        account["profile"] = profile
+        account["checked"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        storage.save_accounts(self._all_accounts)
+        self._finish()
+        self.reload()
         self.status.setText("updated")
 
     @Slot(str)

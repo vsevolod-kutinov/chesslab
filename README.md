@@ -108,7 +108,7 @@ Lichess, Chess.com, FIDE and chess-results for the data you ask for.
 | Ctrl+K | opening weaknesses |
 | Ctrl+T | my tournaments |
 | Ctrl+Y | rating progress |
-| Ctrl+I | Lichess statistics |
+| Ctrl+I | account statistics (Lichess, Chess.com) |
 | right mouse | arrow (drag) or circle (click); Shift / Ctrl / Alt for colour |
 
 ## Project layout
@@ -125,7 +125,7 @@ Lichess, Chess.com, FIDE and chess-results for the data you ask for.
 | `chesslab/report.py` | Markdown game report |
 | `chesslab/games.py`, `games_db.py` | game list window, SQLite database |
 | `chesslab/lichess.py`, `chesscom.py` | site APIs |
-| `chesslab/accounts.py`, `stats.py`, `rating.py` | accounts, Lichess stats, rating chart |
+| `chesslab/accounts.py`, `stats.py`, `rating.py` | accounts, account statistics, rating chart |
 | `chesslab/explorer.py`, `openings.py` | opening explorer and statistics |
 | `chesslab/weakspots.py`, `weaknesses.py` | opening weaknesses: computation and window |
 | `chesslab/eco.py`, `data/eco.tsv` | ECO opening table |

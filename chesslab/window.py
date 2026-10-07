@@ -280,7 +280,7 @@ class MainWindow(QMainWindow):
 
         accounts = bar.addMenu("&Accounts")
         _add(self, accounts, "Lichess and Chess.com…", self.open_accounts)
-        _add(self, accounts, "Lichess statistics…", self.open_stats, "Ctrl+I")
+        _add(self, accounts, "Statistics…", self.open_stats, "Ctrl+I")
 
         help_menu = bar.addMenu("&Help")
         _add(self, help_menu, "About", self.about)
