@@ -24,7 +24,7 @@ from dataclasses import dataclass
 
 import chess
 import chess.pgn
-from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -35,6 +35,8 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
+    QPlainTextEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -48,7 +50,7 @@ from .games import SPEEDS, format_date, outcome_text
 from .openings import COLORS, ScoreBarDelegate
 
 MOVE_HEADERS = ["Move", "Opening", "Games", "Score"]
-GAME_HEADERS = ["Date", "Color", "Opponent", "Result"]
+GAME_HEADERS = ["Date", "Color", "Opponent", "Next", "Result"]
 
 GAMES_SHOWN = 200  # the list at the bottom is for browsing, not for a report
 
@@ -176,6 +178,15 @@ class ExplorerDialog(QDialog):
         self.line: list[str] = []          # SAN of the path walked
         self.moves: list[dict] = []        # continuations from the current position
         self.games: list[sqlite3.Row] = []  # games that reached the position
+        self.repertoire = games_db.load_repertoire(self.conn)
+        self.position = chess.Board()
+
+        # the note is saved a moment after typing stops, not on every key
+        self._note_timer = QTimer(self)
+        self._note_timer.setSingleShot(True)
+        self._note_timer.setInterval(600)
+        self._note_timer.timeout.connect(self._save_note)
+        self._note_epd = self.position.epd()
 
         self._build_ui()
         self.reload()
@@ -218,6 +229,9 @@ class ExplorerDialog(QDialog):
             ("To start", self.go_start, "Back to the starting position (Home)"),
             ("Back", self.go_back, "Undo the last move (←)"),
             ("Flip", self.board.flip, "View from the other side"),
+            ("★ Mine", self.mark_last_move,
+             "Make the last move your repertoire move in the previous position "
+             "(press again to remove)"),
         ):
             button = QPushButton(text)
             button.setToolTip(tip)
@@ -252,6 +266,12 @@ class ExplorerDialog(QDialog):
         self.summary.setWordWrap(True)
         right.addWidget(self.summary)
 
+        self.note_edit = QPlainTextEdit()
+        self.note_edit.setPlaceholderText("Note for this position…")
+        self.note_edit.setFixedHeight(52)
+        self.note_edit.textChanged.connect(self._note_timer.start)
+        right.addWidget(self.note_edit)
+
         right.addLayout(self._build_filters())
         right.addWidget(self._build_search())
 
@@ -259,6 +279,8 @@ class ExplorerDialog(QDialog):
         self.moves_table.setItemDelegateForColumn(3, ScoreBarDelegate(self.moves_table))
         # a single click is enough: a double click would make two moves at once
         self.moves_table.clicked.connect(self.play_selected)
+        self.moves_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.moves_table.customContextMenuRequested.connect(self._moves_menu)
         header = self.moves_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -275,7 +297,7 @@ class ExplorerDialog(QDialog):
         self.games_table.doubleClicked.connect(self.open_selected_game)
         games_header = self.games_table.horizontalHeader()
         games_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        for column in (0, 1, 3):
+        for column in (0, 1, 3, 4):
             games_header.setSectionResizeMode(
                 column, QHeaderView.ResizeMode.ResizeToContents
             )
@@ -439,14 +461,20 @@ class ExplorerDialog(QDialog):
             row["full_name"] = branch.name
             row["variants"] = branch.variants
 
+        mine = self._my_move()
+        if mine and mine not in rows:
+            rows[mine] = {"san": mine, "games": 0, "share": 0.0, "score": None,
+                          "wins": 0, "draws": 0, "losses": 0}
+
         out = list(rows.values())
         for row in out:
             row.setdefault("eco", "")
             row.setdefault("name", "")
             row.setdefault("full_name", "")
             row.setdefault("variants", 0)
-        out.sort(key=lambda r: (0 if r["games"] else 1, -r["games"],
-                                -r["variants"], r["san"]))
+        # the repertoire move goes first, then what was played, then theory
+        out.sort(key=lambda r: (r["san"] != mine, 0 if r["games"] else 1,
+                                -r["games"], -r["variants"], r["san"]))
         return out
 
     def _refresh(self) -> None:
@@ -457,6 +485,9 @@ class ExplorerDialog(QDialog):
             except ValueError:
                 break
         self.board.set_position(board, board.peek() if board.move_stack else None)
+        self._save_note()  # a pending note belongs to the position we are leaving
+        self.position = board
+        self._load_note()
 
         reached = self._matching()
         self.moves = self._merge(reached, board)
@@ -484,11 +515,20 @@ class ExplorerDialog(QDialog):
         losses = len(reached) - wins - draws
         score = sum(e.points for e in reached) / len(reached) * 100
         whites = sum(1 for e in reached if e.me_white)
-        self.summary.setText(
+        text = (
             f'{len(reached)} games   ·   +{wins} ={draws} −{losses}   ·   '
             f'{score:.0f}% score\n'
             f'as White {whites}, as Black {len(reached) - whites}'
         )
+        mine = self._my_move()
+        if mine:
+            depth = len(self.line)
+            mover = [e for e in reached if e.me_white == (board.turn == chess.WHITE)
+                     and len(e.sans) > depth]
+            kept = sum(1 for e in mover if e.sans[depth] == mine)
+            if mover:
+                text += f'\nrepertoire ★ {mine}: played in {kept} of {len(mover)} games'
+        self.summary.setText(text)
         self.status.setText(
             "Click a move to play it. You can also move on the board with the mouse. "
             "Gray moves are theory you have not played from here."
@@ -511,12 +551,17 @@ class ExplorerDialog(QDialog):
         self.moves_table.setRowCount(len(self.moves))
         number = len(self.line) // 2 + 1
         prefix = f"{number}." if len(self.line) % 2 == 0 else f"{number}…"
+        mine = self._my_move()
 
         for index, move in enumerate(self.moves):
             played = move["games"] > 0
 
             title = QTableWidgetItem(f'{prefix} {move["san"]}')
-            if not played:
+            if move["san"] == mine:
+                title.setText(f'★ {prefix} {move["san"]}')
+                title.setForeground(theme.ACCENT)
+                title.setToolTip("Your repertoire move")
+            elif not played:
                 title.setForeground(theme.TEXT_MUTED)
             self.moves_table.setItem(index, 0, title)
 
@@ -545,6 +590,9 @@ class ExplorerDialog(QDialog):
             self.moves_table.setItem(index, 3, score)
 
     def _fill_games(self, reached: list[Entry]) -> None:
+        depth = len(self.line)
+        mine = self._my_move()
+        white_to_move = self.position.turn == chess.WHITE
         shown = reached[:GAMES_SHOWN]
         self.games_table.setRowCount(len(shown))
         for index, entry in enumerate(shown):
@@ -554,12 +602,19 @@ class ExplorerDialog(QDialog):
                 format_date(row["played_at"]),
                 "White" if entry.me_white else "Black",
                 str(opponent),
+                entry.sans[depth] if len(entry.sans) > depth else "",
                 outcome_text(row["winner"] or "", entry.me_white),
             ]
+            # only own moves can deviate: the opponent's choice is not ours
+            deviated = (mine and cells[3] and cells[3] != mine
+                        and entry.me_white == white_to_move)
             for column, text in enumerate(cells):
                 item = QTableWidgetItem(text)
-                if column in (1, 3):
+                if column in (1, 3, 4):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if column == 3 and deviated:
+                    item.setForeground(theme.SCORE_BAD)
+                    item.setToolTip(f"Your repertoire move here is {mine}")
                 self.games_table.setItem(index, column, item)
 
     # --- walking the tree ------------------------------------------------
@@ -620,6 +675,70 @@ class ExplorerDialog(QDialog):
             self._refresh()
         else:
             super().keyPressEvent(event)
+
+    # --- repertoire ------------------------------------------------------
+
+    def _my_move(self) -> str | None:
+        return self.repertoire.get(self.position.epd(), (None, ""))[0]
+
+    def _store(self, epd: str, san: str | None, note: str) -> None:
+        games_db.save_repertoire(self.conn, epd, san, note)
+        if san or note:
+            self.repertoire[epd] = (san, note)
+        else:
+            self.repertoire.pop(epd, None)
+
+    def _set_my_move(self, board: chess.Board, san: str | None) -> None:
+        epd = board.epd()
+        self._store(epd, san, self.repertoire.get(epd, (None, ""))[1])
+
+    @Slot()
+    def mark_last_move(self) -> None:
+        """★ for the move that led here, in the position before it."""
+        if not self.line:
+            self.status.setText("Make a move first — it becomes your move in the position before it.")
+            return
+        before = self.position.copy()
+        before.pop()
+        san = self.line[-1]
+        current = self.repertoire.get(before.epd(), (None, ""))[0]
+        self._set_my_move(before, None if current == san else san)
+        self.status.setText(
+            f"{san} removed from the repertoire." if current == san
+            else f"{san} is now your repertoire move."
+        )
+
+    @Slot(object)
+    def _moves_menu(self, pos) -> None:
+        row = self.moves_table.rowAt(pos.y())
+        if not (0 <= row < len(self.moves)):
+            return
+        san = self.moves[row]["san"]
+        menu = QMenu(self)
+        if san == self._my_move():
+            action = menu.addAction("Remove from repertoire")
+            chosen = None
+        else:
+            action = menu.addAction(f"★ Make {san} my move")
+            chosen = san
+        if menu.exec(self.moves_table.viewport().mapToGlobal(pos)) is action:
+            self._set_my_move(self.position, chosen)
+            self._refresh()
+
+    def _load_note(self) -> None:
+        self._note_epd = self.position.epd()
+        self.note_edit.blockSignals(True)
+        self.note_edit.setPlainText(self.repertoire.get(self._note_epd, (None, ""))[1])
+        self.note_edit.blockSignals(False)
+
+    @Slot()
+    def _save_note(self) -> None:
+        self._note_timer.stop()
+        epd = self._note_epd
+        san, old = self.repertoire.get(epd, (None, ""))
+        note = self.note_edit.toPlainText().strip()
+        if note != old:
+            self._store(epd, san, note)
 
     # --- opening search --------------------------------------------------
 
@@ -688,7 +807,13 @@ class ExplorerDialog(QDialog):
         self.game_chosen.emit(pgn, self.games[row]["id"])
         self.accept()
 
+    def done(self, result: int) -> None:
+        # accept() from "Put on board" / "Open game" skips closeEvent
+        self._save_note()
+        super().done(result)
+
     def closeEvent(self, event) -> None:
+        self._save_note()
         self.conn.close()
         super().closeEvent(event)
 

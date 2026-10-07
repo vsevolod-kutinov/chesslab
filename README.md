@@ -37,6 +37,9 @@ over-the-board tournaments.
 **Openings**
 - Opening explorer: your own games and named theory in one table, search by
   name or ECO code, type a line of moves to jump to it.
+- Repertoire: mark your move in any position (★, right-click a move or
+  the “★ Mine” button) and keep a note per position. Keyed by position, so
+  transpositions share an entry; games where you deviated are highlighted.
 - Opening statistics: score per variation / family / ECO code, worst first.
 - Opening weaknesses: the engine analyses only the opening phase of your
   games and ranks positions by games × lost winning chances. Positions are

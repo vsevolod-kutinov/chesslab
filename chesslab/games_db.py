@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import time
 from datetime import datetime, timedelta
 
 from . import storage
@@ -64,6 +65,14 @@ CREATE TABLE IF NOT EXISTS positions (
     mate     INTEGER,
     best_uci TEXT,
     checked_at INTEGER NOT NULL
+);
+
+-- own repertoire: keyed by position, so transpositions share one entry
+CREATE TABLE IF NOT EXISTS repertoire (
+    epd        TEXT PRIMARY KEY,
+    san        TEXT,  -- own move in this position; NULL = only a note
+    note       TEXT,
+    updated_at INTEGER NOT NULL
 );
 """
 
@@ -244,6 +253,33 @@ def save_positions(conn: sqlite3.Connection, rows: list[dict]) -> None:
         """,
         rows,
     )
+    conn.commit()
+
+
+def load_repertoire(conn: sqlite3.Connection) -> dict[str, tuple[str | None, str]]:
+    """{epd: (move, note)} — small enough to keep in memory whole."""
+    return {
+        row["epd"]: (row["san"], row["note"] or "")
+        for row in conn.execute("SELECT epd, san, note FROM repertoire")
+    }
+
+
+def save_repertoire(conn: sqlite3.Connection, epd: str,
+                    san: str | None, note: str) -> None:
+    """An entry with neither a move nor a note is deleted."""
+    note = note.strip()
+    if not san and not note:
+        conn.execute("DELETE FROM repertoire WHERE epd = ?", (epd,))
+    else:
+        conn.execute(
+            """
+            INSERT INTO repertoire (epd, san, note, updated_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT(epd) DO UPDATE SET
+                san = excluded.san, note = excluded.note,
+                updated_at = excluded.updated_at
+            """,
+            (epd, san or None, note or None, int(time.time())),
+        )
     conn.commit()
 
 
