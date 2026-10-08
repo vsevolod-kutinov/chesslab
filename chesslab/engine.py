@@ -309,19 +309,25 @@ class GameAnalyzer(QObject):
                 positions.append(board.fen())
 
             total = len(positions)
-            evaluations: list[tuple[int, int | None, str | None]] = []
+            evaluations: list[Evaluation] = []
 
             for index, fen in enumerate(positions):
                 if self._cancel.is_set():
                     self.failed.emit("Analysis interrupted.")
                     return
-                info = engine.analyse(chess.Board(fen), chess.engine.Limit(depth=depth))
-                score = info["score"].white()
-                principal = info.get("pv") or []
-                evaluations.append((
+                # two lines: the gap between them tells an only move ("great")
+                infos = engine.analyse(chess.Board(fen), chess.engine.Limit(depth=depth),
+                                       multipv=2)
+                score = infos[0]["score"].white()
+                principal = infos[0].get("pv") or []
+                second = None
+                if len(infos) > 1 and "score" in infos[1]:
+                    second = infos[1]["score"].white().score(mate_score=CP_CAP)
+                evaluations.append(Evaluation(
                     score.score(mate_score=CP_CAP),
                     score.mate(),
                     principal[0].uci() if principal else None,
+                    second,
                 ))
                 self.progress.emit(index + 1, total)
 
@@ -338,27 +344,58 @@ class GameAnalyzer(QObject):
                     pass
 
 
+@dataclass
+class Evaluation:
+    """Engine verdict on one position, from White's side."""
+
+    cp: int
+    mate: int | None
+    best_uci: str | None
+    second_cp: int | None  # the second-best line; None with a single legal move
+
+
 def _build_rows(game_id: str, start_fen: str, moves: list[chess.Move],
-                evaluations: list[tuple[int, int | None, str | None]]) -> list[dict]:
-    """Turns position evaluations into per-ply records with losses and tags."""
+                evaluations: list[Evaluation]) -> list[dict]:
+    """Turns position evaluations into per-ply records with losses, tags and classes."""
+    from . import eco, review  # eco loads its table on first use
+
+    book = eco.book()
     rows = [{
         "game_id": game_id, "ply": 0,
-        "cp": evaluations[0][0], "mate": evaluations[0][1],
-        "best_uci": evaluations[0][2], "played_uci": None,
-        "loss": None, "tag": "",
+        "cp": evaluations[0].cp, "mate": evaluations[0].mate,
+        "best_uci": evaluations[0].best_uci, "played_uci": None,
+        "loss": None, "tag": "", "kind": "",
     }]
 
     board = chess.Board(start_fen)
+    in_book = board.fen() == chess.STARTING_FEN
+    previous_loss = None
     for index, move in enumerate(moves):
         white_moved = board.turn == chess.WHITE
-        before_cp, _, best_uci = evaluations[index]
-        after_cp, after_mate, _ = evaluations[index + 1]
+        current = evaluations[index]
+        after_cp, after_mate = evaluations[index + 1].cp, evaluations[index + 1].mate
+        best_uci = current.best_uci
 
-        before = win_percent(before_cp)
-        after = win_percent(after_cp)
-        if not white_moved:
-            before, after = 100 - before, 100 - after
+        def mover(cp: int) -> float:
+            chances = win_percent(cp)
+            return chances if white_moved else 100 - chances
+
+        before = mover(current.cp)
+        after = mover(after_cp)
         loss = max(0.0, before - after)
+        gap = (before - mover(current.second_cp)
+               if current.second_cp is not None else None)
+
+        position = board.copy()
+        # a book move continues one of the named lines; once off them, the game
+        # never counts as "in book" again, even if it transposes back
+        in_book = in_book and any(b.uci == move.uci() for b in book.moves_from(board))
+        board.push(move)
+        kind = review.classify(
+            review.Ply(position, move, best_uci, loss, after, gap, in_book),
+            previous_loss,
+        )
+        previous_loss = loss
 
         tag = ""
         for threshold, name in TAG_THRESHOLDS:
@@ -370,9 +407,8 @@ def _build_rows(game_id: str, start_fen: str, moves: list[chess.Move],
             "game_id": game_id, "ply": index + 1,
             "cp": after_cp, "mate": after_mate,
             "best_uci": best_uci, "played_uci": move.uci(),
-            "loss": round(loss, 2), "tag": tag,
+            "loss": round(loss, 2), "tag": tag, "kind": kind,
         })
-        board.push(move)
 
     return rows
 

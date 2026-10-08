@@ -20,6 +20,9 @@ CURRENT_BG = "#3b4a2d"
 
 TAG_MARKS = {"blunder": "??", "mistake": "?", "inaccuracy": "?!"}
 TAG_COLORS = {"blunder": "#d1503f", "mistake": "#d98f3a", "inaccuracy": "#c9b24a"}
+# classes the game review adds on top of the ?! / ? / ?? tags
+TAG_MARKS.update({"brilliant": "!!", "great": "!", "miss": "?"})
+TAG_COLORS.update({"brilliant": "#26c2a3", "great": "#5c8bb0", "miss": "#ff7769"})
 
 
 class MoveList(QTextBrowser):

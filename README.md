@@ -17,6 +17,10 @@ over-the-board tournaments.
 - Full game analysis at fixed depth: evaluation graph, `??` / `?` / `?!`
   marks, accuracy per side. Losses are measured in winning chances
   (Lichess formula), not centipawns. Results are cached in the database.
+- Game review, Chess.com style: every move gets a class (brilliant, great,
+  best, excellent, good, book, inaccuracy, mistake, miss, blunder) shown as a
+  badge on the board, plus a summary of both sides (Ctrl+Shift+G). Great and
+  brilliant are an approximation: Chess.com's exact rules are not public.
 - Variations: a move from the middle of a game starts a branch instead of
   overwriting; promote, demote or delete variations from the move list.
 - Arrows and circles with the right mouse button, like on Lichess;
@@ -112,6 +116,7 @@ Lichess, Chess.com, FIDE and chess-results for the data you ask for.
 | Ctrl+O / Ctrl+Shift+V | open PGN file / paste PGN |
 | Ctrl+S | save variations to the database |
 | Ctrl+R | analyse game |
+| Ctrl+Shift+G | game review summary |
 | Ctrl+Shift+R | export written report |
 | Ctrl+G | my games |
 | Ctrl+B | opening explorer |

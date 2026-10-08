@@ -46,6 +46,7 @@ from .evalbar import EvalBar
 from .icons import nav_icon
 from .games import GamesDialog
 from .movelist import MoveList
+from .reviewdialog import ReviewDialog
 from .openings import OpeningsDialog
 from .rating import RatingDialog
 from .sound import Sounds
@@ -65,6 +66,14 @@ NOTICE_HOLD = 8.0
 
 TAG_MARKS = {"blunder": "??", "mistake": "?", "inaccuracy": "?!"}
 TAG_COLORS = {"blunder": "#d1503f", "mistake": "#d98f3a", "inaccuracy": "#c9b24a"}
+
+
+def _kind(row) -> str:
+    """Review class of an analysis row; analyses saved before the review have none."""
+    try:
+        return row["kind"] or ""
+    except (KeyError, IndexError):
+        return ""
 
 
 class BoardArea(QWidget):
@@ -252,6 +261,7 @@ class MainWindow(QMainWindow):
 
         self.analyse_action = _add(self, engine, "Analyse game",
                                    self.analyse_game, "Ctrl+R")
+        _add(self, engine, "Game review…", self.show_review, "Ctrl+Shift+G")
         _add(self, engine, "Export written report…",
              self.export_report, "Ctrl+Shift+R")
         engine.addSeparator()
@@ -446,6 +456,16 @@ class MainWindow(QMainWindow):
         """Half-move number from the start of the game."""
         return self.node.ply() - self.game.ply()
 
+    def _update_badge(self) -> None:
+        """Review class of the move that led here — only on the analysed main line."""
+        row = None
+        if self.node.parent is not None and self.node.is_mainline() and self.analysis:
+            row = self.analysis.get(self._mainline_ply())
+        if row is None:
+            self.board_widget.set_badge(None, None)
+            return
+        self.board_widget.set_badge(self.node.move.to_square, _kind(row))
+
     def _mainline_ply(self) -> int:
         """Nearest point on the main line - for the graph and analysis."""
         node = self.node
@@ -466,6 +486,7 @@ class MainWindow(QMainWindow):
         self.board_widget.set_position(board, last_move)
         self.board_widget.set_marks(self._marks_by_node.get(self.node, {}))
         self.board_widget.set_best_move(None)
+        self._update_badge()
         self.eval_bar.set_score(None, None)
         self.eval_label.setText("…")
         self._lines = []
@@ -492,7 +513,12 @@ class MainWindow(QMainWindow):
             node = node.variations[0]
             ply += 1
             row = self.analysis.get(ply)
-            if row is not None and row["tag"]:
+            if row is None:
+                continue
+            kind = _kind(row)
+            if kind in ("brilliant", "great", "miss"):
+                tags[id(node)] = kind
+            elif row["tag"]:
                 tags[id(node)] = row["tag"]
         return tags
 
@@ -953,6 +979,7 @@ class MainWindow(QMainWindow):
                 self._notice(f"analysis computed but not saved: {exc}")
 
         self._apply_analysis()
+        self.show_review()  # the summary first, as on Chess.com
 
     @Slot(str)
     def _on_analysis_failed(self, message: str) -> None:
@@ -995,6 +1022,7 @@ class MainWindow(QMainWindow):
         self.graph.set_flipped(self.board_widget.flipped)
         self.graph.set_current(self._mainline_ply())
         self._update_move_list()
+        self._update_badge()
         self._notice(self._analysis_summary())
 
     def _analysis_summary(self) -> str:
@@ -1026,6 +1054,38 @@ class MainWindow(QMainWindow):
             if tally.get(tag):
                 parts.append(f"{label} {tally[tag]}")
         return "   ·   ".join(parts)
+
+    @Slot()
+    def show_review(self) -> None:
+        """Summary of the analysed game: accuracy and move classes of both sides."""
+        if not self.analysis:
+            self._notice("Analyse the game first: Ctrl+R.")
+            return
+        kinds, losses = [], []
+        first_ply = None
+        board = chess.Board(self.start_fen)
+        for index, move in enumerate(self.mainline):
+            row = self.analysis.get(index + 1)
+            if row is not None:
+                kind = _kind(row)
+                kinds.append((board.turn, kind))
+                if row["loss"] is not None:
+                    losses.append((board.turn, row["loss"]))
+                if first_ply is None and kind and kind != "book":
+                    first_ply = index + 1
+            board.push(move)
+        if not any(kind for _, kind in kinds):
+            self._notice("This analysis predates the game review — run Ctrl+R again.")
+            return
+
+        headers = self.game.headers
+        names = tuple(
+            headers.get(side, "?") if headers.get(side, "?") not in ("?", "") else side
+            for side in ("White", "Black")
+        )
+        dialog = ReviewDialog(names, kinds, losses, first_ply or 1, self)
+        dialog.start_review.connect(self._goto)
+        dialog.exec()
 
     @Slot()
     def export_report(self) -> None:

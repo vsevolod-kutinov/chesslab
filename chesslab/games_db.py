@@ -83,6 +83,9 @@ _LATE_COLUMNS = {
         "round": "TEXT",
         "service": "TEXT",  # lichess, chess.com or otb (a game from a scoresheet)
     },
+    "analysis": {
+        "kind": "TEXT",  # move class for the game review: best, great, blunder…
+    },
     "tournaments": {
         "official": "INTEGER DEFAULT 0",  # 1 = FIDE-rated tournament
         "fide_event": "TEXT",             # tournament id on ratings.fide.com
@@ -184,7 +187,7 @@ def store(conn: sqlite3.Connection, rows: list[dict]) -> int:
 
 
 _ANALYSIS_COLUMNS = ("game_id", "ply", "cp", "mate", "best_uci", "played_uci",
-                     "loss", "tag")
+                     "loss", "tag", "kind")
 
 
 def save_analysis(conn: sqlite3.Connection, game_id: str, rows: list[dict]) -> None:

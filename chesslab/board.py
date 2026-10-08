@@ -37,6 +37,7 @@ class BoardWidget(QWidget):
         self._targets: dict[int, chess.Move] = {}
         self._last_move: chess.Move | None = None
         self._best_uci: str | None = None
+        self._badge: tuple[int, str] | None = None  # (square, review class)
 
         self._press_square: int | None = None
         self._press_pos: QPointF | None = None
@@ -70,6 +71,11 @@ class BoardWidget(QWidget):
         self._marks = {}
         self.update()
         self.marks_changed.emit({})
+
+    def set_badge(self, square: int | None, kind: str | None) -> None:
+        """Game-review class of the last move, drawn on its destination square."""
+        self._badge = (square, kind) if square is not None and kind else None
+        self.update()
 
     def set_best_move(self, uci: str | None) -> None:
         self._best_uci = uci
@@ -274,8 +280,41 @@ class BoardWidget(QWidget):
             self._paint_arrow(painter)
         if not self.edit_mode:
             self._paint_marks(painter)     # arrows on top - otherwise not visible
+            self._paint_badge(painter)
         self._paint_dragged(painter)
         painter.end()
+
+    def _paint_badge(self, painter: QPainter) -> None:
+        """A coloured disc with the class symbol on the square's top-right corner,
+        half outside it — as on Chess.com, so it does not cover the piece."""
+        if self._badge is None:
+            return
+        from .review import STYLE
+
+        square, kind = self._badge
+        style = STYLE.get(kind)
+        if style is None:
+            return
+        rect = self._square_rect(square)
+        radius = rect.width() * 0.19
+        center = QPointF(rect.right() - radius * 0.35, rect.top() + radius * 0.35)
+        # keep the disc inside the widget on the board's top and right edges
+        center.setX(min(center.x(), self.width() - radius - 1))
+        center.setY(max(center.y(), radius + 1))
+
+        painter.save()
+        painter.setPen(QPen(QColor(0, 0, 0, 90), 1.5))
+        painter.setBrush(QColor(style.color))
+        painter.drawEllipse(center, radius, radius)
+        font = QFont(self.font())
+        font.setBold(True)
+        font.setPixelSize(max(8, int(radius * (1.0 if len(style.symbol) > 1 else 1.25))))
+        painter.setFont(font)
+        painter.setPen(QColor("#ffffff"))
+        painter.drawText(QRectF(center.x() - radius, center.y() - radius,
+                                2 * radius, 2 * radius),
+                         Qt.AlignmentFlag.AlignCenter, style.symbol)
+        painter.restore()
 
     def _paint_edge(self, painter: QPainter) -> None:
         """Thin frame: without it light squares blend into the window edge."""
