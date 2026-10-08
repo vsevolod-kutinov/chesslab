@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import math
 import sqlite3
+import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -19,6 +21,18 @@ import chess.engine
 from PySide6.QtCore import QObject, Signal
 
 from . import games_db
+
+
+def open_engine(path: str) -> chess.engine.SimpleEngine:
+    """Start a UCI engine.
+
+    On Windows the engine is a console program: started from a windowed app
+    it would pop up its own console window, so ask for none.
+    """
+    extra = {}
+    if sys.platform == "win32":
+        extra["creationflags"] = subprocess.CREATE_NO_WINDOW
+    return chess.engine.SimpleEngine.popen_uci(path, **extra)
 
 
 @dataclass
@@ -152,7 +166,7 @@ class EngineBridge(QObject):
 
     def _boot(self) -> bool:
         try:
-            self._engine = chess.engine.SimpleEngine.popen_uci(self._path)
+            self._engine = open_engine(self._path)
             self._engine.configure({"Threads": self._threads, "Hash": self._hash_mb})
         except (OSError, chess.engine.EngineError) as exc:
             self.failed.emit(f"Could not start the engine: {exc}")
@@ -285,7 +299,7 @@ class GameAnalyzer(QObject):
              depth: int) -> None:
         engine = None
         try:
-            engine = chess.engine.SimpleEngine.popen_uci(self._path)
+            engine = open_engine(self._path)
             engine.configure({"Threads": self._threads, "Hash": self._hash_mb})
 
             board = chess.Board(start_fen)
@@ -418,7 +432,7 @@ class OpeningAnalyzer(QObject):
                 self.finished.emit(0)
                 return
 
-            engine = chess.engine.SimpleEngine.popen_uci(self._path)
+            engine = open_engine(self._path)
             engine.configure({"Threads": self._threads, "Hash": self._hash_mb})
             limit = chess.engine.Limit(depth=depth)
 
