@@ -22,7 +22,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt PySide6 pyinstaller
+        # PyInstaller's bootloader is compiled here instead of using the prebuilt
+        # one: antivirus databases know the stock bootloader (malware uses it too),
+        # which is the usual reason for false "Trojan" detections.
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: "1"
+        run: |
+          pip install -r requirements.txt PySide6
+          pip install --no-binary pyinstaller pyinstaller
 
       - name: Fetch Stockfish
         shell: pwsh
@@ -35,7 +42,9 @@ jobs:
           Copy-Item sf/stockfish/Copying.txt engine/Stockfish-COPYING.txt
 
       - name: Build
-        run: pyinstaller --noconfirm chesslab.spec
+        run: |
+          python tools/version_info.py
+          pyinstaller --noconfirm chesslab.spec
 
       - name: Self-test the build
         shell: pwsh

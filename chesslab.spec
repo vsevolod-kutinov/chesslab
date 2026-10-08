@@ -21,5 +21,7 @@ exe = EXE(
     name="ChessLab",
     console=False,
     icon="chesslab/assets/icon.ico",
+    # name, version and description in the file properties (made by tools/version_info.py)
+    version="build/version_info.txt" if Path("build/version_info.txt").is_file() else None,
 )
 coll = COLLECT(exe, a.binaries, a.datas, name="ChessLab")
