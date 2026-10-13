@@ -314,7 +314,7 @@ def fetch(link: str, progress=None) -> dict:
             progress(text)
 
     say("Opening tournament...")
-    meta = parse_meta(_fetch_page(host, event))
+    meta = parse_meta(_fetch_page(host, event, "&turdet=YES"))
     rounds = meta["rounds"]
     if not rounds:
         raise ResultsError("The page does not say how many rounds there were.")
