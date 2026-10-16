@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 from . import __version__, chesscom, games_db, lichess, report, storage, theme
 from .accounts import AccountsDialog
 from .board import BoardWidget
+from .assistant import AssistantDialog
 from .crossreport import open_report as open_cross_report
 from .editor import PositionEditor
 from .engine import EngineBridge, GameAnalyzer, Line, move_accuracy
@@ -285,6 +286,7 @@ class MainWindow(QMainWindow):
         archive.addSeparator()
         _add(self, archive, "My tournaments…", self.open_tournaments, "Ctrl+T")
         _add(self, archive, "Tournament report from chess-results…", self.open_cross_report)
+        _add(self, archive, "Assistant: scout players…", self.open_assistant, "Ctrl+J")
         archive.addSeparator()
         _add(self, archive, "Rating progress…", self.open_rating, "Ctrl+Y")
 
@@ -893,6 +895,16 @@ class MainWindow(QMainWindow):
         creep into opening statistics alongside the real ones.
         """
         self._import_pgn(QGuiApplication.clipboard().text(), "The clipboard doesn't look like a PGN.")
+
+    @Slot()
+    def open_assistant(self) -> None:
+        # one window for the whole session: closing it keeps the conversation
+        if getattr(self, "_assistant", None) is None:
+            self._assistant = AssistantDialog(self)
+            self._assistant.pgn_chosen.connect(self.open_pgn_path)
+        self._assistant.show()
+        self._assistant.raise_()
+        self._assistant.activateWindow()
 
     @Slot()
     def open_pgn_file(self) -> None:

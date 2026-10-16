@@ -57,6 +57,10 @@ over-the-board tournaments.
 - Full crosstable analysis from chess-results.com: upsets, every player's
   performance, strength of schedule, and a choice of how to rate unrated
   players (as listed, fixed value, or iterated performance).
+- Assistant (Ctrl+J): a chat with Claude Code for opponent scouting — ask in
+  plain words, it reads chess-results and pulls the players' games from the
+  chess-results game database (`python -m chesslab.scout "Last, First"`).
+  Needs `claude` on PATH.
 
 ## Installation
 
