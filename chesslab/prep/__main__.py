@@ -8,6 +8,7 @@ import sys
 # command -> module with main(argv); modules load lazily, a broken one does not block the rest
 COMMANDS = {
     "games": "games",
+    "lineup": "lineup",
 }
 
 
