@@ -91,6 +91,17 @@ def board_pairings(page: str) -> list[dict]:
     return out
 
 
+def played_rounds(host: str, event: str):
+    """(round, boards with a result) for every round played so far."""
+    meta = chessresults.parse_meta(chessresults._fetch_page(host, event, "&turdet=YES"))
+    for round_no in range(1, (meta.get("rounds") or 0) + 1):
+        boards = board_pairings(chessresults._fetch_page(host, event, f"&art=3&rd={round_no}"))
+        boards = [b for b in boards if b["result"]]
+        if not boards:
+            return  # rounds go in order: the first unplayed one ends the list
+        yield round_no, boards
+
+
 def lineup(link: str, team: str) -> dict:
     """The team's roster and who it fielded on each board in the rounds played."""
     host, event = chessresults.parse_link(link)
@@ -99,13 +110,11 @@ def lineup(link: str, team: str) -> dict:
     if not names:
         raise chessresults.ResultsError(f"No team matching {team!r} in this tournament.")
     full_name = names[0]
-    meta = chessresults.parse_meta(chessresults._fetch_page(host, event, "&turdet=YES"))
     rounds: dict[int, dict[int, str]] = {}
-    for round_no in range(1, (meta.get("rounds") or 0) + 1):
-        boards = board_pairings(chessresults._fetch_page(host, event, f"&art=3&rd={round_no}"))
-        played = [b for b in boards if b["result"] and full_name in (b["home"], b["away"])]
+    for round_no, boards in played_rounds(host, event):
+        played = [b for b in boards if full_name in (b["home"], b["away"])]
         if not played:
-            break  # rounds go in order: the first unplayed one ends the list
+            continue  # a bye round for this team
         rounds[round_no] = {
             b["board"]: b["home_player"] if b["home"] == full_name else b["away_player"]
             for b in played

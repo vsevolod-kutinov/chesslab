@@ -9,6 +9,7 @@ import sys
 COMMANDS = {
     "games": "games",
     "lineup": "lineup",
+    "card": "card",
 }
 
 
