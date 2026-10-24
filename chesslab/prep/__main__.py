@@ -10,6 +10,8 @@ COMMANDS = {
     "games": "games",
     "lineup": "lineup",
     "card": "card",
+    "analyse": "analyse",
+    "mine": "mine",
 }
 
 
