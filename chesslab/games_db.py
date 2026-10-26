@@ -74,6 +74,15 @@ CREATE TABLE IF NOT EXISTS repertoire (
     note       TEXT,
     updated_at INTEGER NOT NULL
 );
+
+-- opponent preps (Prep tab): the chat and the Claude session it continues
+CREATE TABLE IF NOT EXISTS preps (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    title      TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    session    TEXT NOT NULL,
+    transcript TEXT NOT NULL DEFAULT '[]'  -- JSON list of {role, text}
+);
 """
 
 # columns added after the initial schema
