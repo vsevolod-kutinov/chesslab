@@ -36,7 +36,9 @@ def _plain(text: str) -> str:
 
 
 def same_team(query: str, team: str) -> bool:
-    return _plain(query) in _plain(team)
+    """Every word of the query is a word of the name: "Humenné C" finds "Humenné Reinter C"."""
+    words = _plain(team).split()
+    return all(any(w.startswith(q) for w in words) for q in _plain(query).split())
 
 
 def roster(page: str) -> list[dict]:

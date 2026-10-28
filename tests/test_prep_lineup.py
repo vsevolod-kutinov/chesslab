@@ -35,6 +35,8 @@ class LineupTest(unittest.TestCase):
     def test_team_lookup_ignores_diacritics(self):
         self.assertTrue(lineup.same_team("humenne", "Humenné Reinter C"))
         self.assertFalse(lineup.same_team("humenne", "Prvý ŠK Prešov"))
+        self.assertTrue(lineup.same_team("Humenné C", "Humenné Reinter C"))
+        self.assertFalse(lineup.same_team("Humenné B", "Humenné Reinter C"))
 
     def test_table_without_rounds(self):
         text = lineup.render({"team": "X", "roster": [], "rounds": {}})
