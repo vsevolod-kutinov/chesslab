@@ -57,9 +57,12 @@ over-the-board tournaments.
 - Full crosstable analysis from chess-results.com: upsets, every player's
   performance, strength of schedule, and a choice of how to rate unrated
   players (as listed, fixed value, or iterated performance).
-- Assistant (Ctrl+J): a chat with Claude Code for opponent scouting — ask in
-  plain words, it reads chess-results and pulls the players' games from the
-  chess-results game database (`python -m chesslab.scout "Last, First"`).
+- Prep tab (Ctrl+P switches Analysis / Prep, Ctrl+J opens it): prepare for a
+  league game step by step with Claude Code — who the team fields on your board,
+  player cards (FIDE profile, rating trend, games in this event), their openings
+  from the chess-results game database, an engine pass over their games, and
+  lines that fit your own repertoire. Moves in answers open on the board; preps
+  are saved. Tools: `python -m chesslab.prep lineup|card|games|analyse|mine`.
   Needs `claude` on PATH.
 
 ## Installation

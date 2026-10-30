@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QStackedWidget,
+    QTabBar,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -37,7 +39,7 @@ from PySide6.QtWidgets import (
 from . import __version__, chesscom, games_db, lichess, report, storage, theme
 from .accounts import AccountsDialog
 from .board import BoardWidget
-from .assistant import AssistantDialog
+from .prep.panel import PrepPanel
 from .crossreport import open_report as open_cross_report
 from .editor import PositionEditor
 from .engine import EngineBridge, GameAnalyzer, Line, move_accuracy
@@ -194,8 +196,47 @@ class MainWindow(QMainWindow):
         root = QHBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
         root.addLayout(board_column, 1)
-        root.addWidget(self._build_side_panel())
+        root.addLayout(self._build_right_column())
         self.setCentralWidget(central)
+
+    # one width for both tabs: a width per tab made the board jump on every switch
+    _COLUMN_WIDTH = 420
+
+    def _build_right_column(self) -> QVBoxLayout:
+        """Tabs "Analysis | Prep" over the two panels; the board stays on the left."""
+        self.prep_panel = PrepPanel()
+        self.prep_panel.line_chosen.connect(self.load_line)
+        self.prep_panel.pgn_chosen.connect(self.open_pgn_path)
+
+        self._right_stack = QStackedWidget()
+        self._right_stack.addWidget(self._build_side_panel())
+        self._right_stack.addWidget(self.prep_panel)
+
+        self._right_tabs = QTabBar()
+        self._right_tabs.addTab("Analysis")
+        self._right_tabs.addTab("Prep")
+        self._right_tabs.setDrawBase(False)
+        self._right_tabs.currentChanged.connect(self._on_right_tab)
+
+        column = QVBoxLayout()
+        column.setContentsMargins(0, theme.gap(2), theme.gap(2), theme.gap(2))
+        column.setSpacing(0)
+        column.addWidget(self._right_tabs)
+        column.addWidget(self._right_stack, 1)
+        self._right_stack.setFixedWidth(self._COLUMN_WIDTH)
+        return column
+
+    @Slot(int)
+    def _on_right_tab(self, index: int) -> None:
+        self._right_stack.setCurrentIndex(index)
+
+    @Slot()
+    def toggle_prep(self) -> None:
+        self._right_tabs.setCurrentIndex(1 - self._right_tabs.currentIndex())
+
+    @Slot()
+    def open_prep(self) -> None:
+        self._right_tabs.setCurrentIndex(1)
 
     def _align_to_board(self, left: int, right: int) -> None:
         """Captions and graph match the board width exactly, not the whole column."""
@@ -286,7 +327,8 @@ class MainWindow(QMainWindow):
         archive.addSeparator()
         _add(self, archive, "My tournaments…", self.open_tournaments, "Ctrl+T")
         _add(self, archive, "Tournament report from chess-results…", self.open_cross_report)
-        _add(self, archive, "Assistant: scout players…", self.open_assistant, "Ctrl+J")
+        _add(self, archive, "Prep: next opponent", self.open_prep, "Ctrl+J")
+        _add(self, archive, "Switch Analysis / Prep", self.toggle_prep, "Ctrl+P")
         archive.addSeparator()
         _add(self, archive, "Rating progress…", self.open_rating, "Ctrl+Y")
 
@@ -300,7 +342,6 @@ class MainWindow(QMainWindow):
     def _build_side_panel(self) -> QWidget:
         panel = QFrame()
         panel.setObjectName("panel")
-        panel.setFixedWidth(360)
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(theme.gap(4), theme.gap(4), theme.gap(4), theme.gap(4))
@@ -897,16 +938,6 @@ class MainWindow(QMainWindow):
         self._import_pgn(QGuiApplication.clipboard().text(), "The clipboard doesn't look like a PGN.")
 
     @Slot()
-    def open_assistant(self) -> None:
-        # one window for the whole session: closing it keeps the conversation
-        if getattr(self, "_assistant", None) is None:
-            self._assistant = AssistantDialog(self)
-            self._assistant.pgn_chosen.connect(self.open_pgn_path)
-        self._assistant.show()
-        self._assistant.raise_()
-        self._assistant.activateWindow()
-
-    @Slot()
     def open_pgn_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Open PGN", str(Path.home()), "Games (*.pgn *.txt);;All files (*)"
@@ -1314,6 +1345,7 @@ class MainWindow(QMainWindow):
         else:
             self.board_widget.set_best_move(None)
             self.eval_label.setText("—")
+        self.prep_panel.set_eval(self.eval_label.text())
 
         if depth and time.monotonic() >= self._notice_until:
             self.status_label.setText(f"depth {depth}   ·   {nps / 1000:.0f}k nodes/s")
@@ -1322,6 +1354,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         self.engine.shutdown()
+        self.prep_panel.shutdown()
         super().closeEvent(event)
 
 

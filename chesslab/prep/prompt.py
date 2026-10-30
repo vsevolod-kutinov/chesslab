@@ -18,6 +18,10 @@ Work in steps and STOP after each one, asking whether to go on:
    Name the likely opponent(s) with how likely each is and why (rounds played).
    For each candidate run `card` (FIDE ID from the lineup roster) - the app shows
    the cards itself, so in the text give only the key facts in one line each.
+   If the user names one player directly (name, FIDE ID or a chess-results /
+   FIDE link) instead of a team, skip the lineup: run `card` for him (with --link
+   if a tournament is given; find the FIDE ID on ratings.fide.com if only a name),
+   then stop and ask as usual.
 2. Openings: run `games` for the candidate(s). Games from THIS tournament first,
    then the rest. Only openings at this step: what he plays as White and as Black,
    how often, how it went.
