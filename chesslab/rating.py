@@ -71,6 +71,22 @@ def period_title(key: str, group: str) -> str:
         return key
 
 
+def trim_lonely_start(points: list[tuple[int, int]], gap_days: int = 365,
+                      share: float = 0.05) -> tuple[list, list]:
+    """Drop a few old games cut off by a long pause, so they do not stretch the axis.
+
+    One game from years ago otherwise squeezes the real history into a corner.
+    Only a small head (under `share` of all games) is dropped; two real periods stay.
+    """
+    gap = gap_days * 86_400_000
+    for index in range(1, len(points)):
+        if points[index][0] - points[index - 1][0] > gap:
+            if index <= len(points) * share:
+                return points[index:], points[:index]
+            break
+    return points, []
+
+
 class RatingChart(QWidget):
     """Rating curve over time. The X axis is dates, not game numbers."""
 
@@ -81,10 +97,11 @@ class RatingChart(QWidget):
         self.setMinimumHeight(160)
         self.setMouseTracking(True)
         self.points: list[tuple[int, int]] = []
+        self.hidden: list[tuple[int, int]] = []  # lonely old games left off the axis
         self._hover: int | None = None
 
     def set_points(self, points: list[tuple[int, int]]) -> None:
-        self.points = points
+        self.points, self.hidden = trim_lonely_start(points)
         self._hover = None
         self.update()
 
@@ -151,6 +168,14 @@ class RatingChart(QWidget):
         painter.setPen(QPen(theme.BORDER, 1))
         painter.setBrush(theme.INSET)
         painter.drawRoundedRect(area, 6, 6)
+
+        if self.hidden:
+            first = datetime.fromtimestamp(self.hidden[0][0] / 1000).strftime("%Y-%m")
+            count = len(self.hidden)
+            painter.setPen(QPen(theme.TEXT_MUTED))
+            painter.drawText(area.adjusted(8, 6, -10, 0),
+                             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop,
+                             f"{count} earlier game{'s' if count > 1 else ''} from {first} not shown")
 
         if len(self.points) < 2:
             painter.setPen(QPen(theme.TEXT_MUTED))
@@ -293,7 +318,7 @@ class RatingDialog(QDialog):
         self.hover_label.setFont(theme.tabular(self.font()))
         layout.addWidget(self.hover_label)
 
-        self.table_label = QLabel("BY MONTH")
+        self.table_label = QLabel("By month")
         self.table_label.setObjectName("heading")
         layout.addWidget(self.table_label)
 
@@ -425,7 +450,7 @@ class RatingDialog(QDialog):
 
     def _fill_table(self, chunks: list[dict], group: str) -> None:
         title = next(g[2] for g in GROUPS if g[0] == group)
-        self.table_label.setText(self.group_box.currentText().upper())
+        self.table_label.setText(self.group_box.currentText())
         self.table.setHorizontalHeaderLabels([title] + HEADERS[1:])
         self.table.horizontalHeaderItem(0).setTextAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter

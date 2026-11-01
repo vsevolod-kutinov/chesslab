@@ -185,7 +185,7 @@ class OpeningsDialog(QDialog):
 
         total = games_db.overall(self.conn, account)
         self.summary.setText(
-            f"{(account or 'all accounts').upper()}   ·   "
+            f"{(account or 'all accounts')}   ·   "
             f"{total['games']} GAMES   ·   "
             f"+{total['wins']} ={total['draws']} −{total['losses']}   ·   "
             f"{total['score']:.1f}% SCORE"

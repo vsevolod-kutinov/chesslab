@@ -61,7 +61,7 @@ class AccountsDialog(QDialog):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
 
-        caption = QLabel("SAVED ACCOUNTS")
+        caption = QLabel("Saved accounts")
         caption.setObjectName("heading")
         layout.addWidget(caption)
 

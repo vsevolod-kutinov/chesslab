@@ -66,7 +66,7 @@ class ReviewDialog(QDialog):
         layout.setContentsMargins(margin, margin, margin, margin)
         layout.setSpacing(theme.gap(3))
 
-        title = QLabel("GAME REVIEW")
+        title = QLabel("Game review")
         title.setObjectName("heading")
         layout.addWidget(title)
 

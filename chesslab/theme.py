@@ -119,9 +119,8 @@ QLabel, QCheckBox { background: transparent; }
 /* --- text roles ------------------------------------------------------- */
 QLabel#heading {
     color: #9b9689;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.09em;
 }
 QLabel#player {
     font-size: 15px;
@@ -325,9 +324,8 @@ QHeaderView::section {
     border: none;
     border-bottom: 1px solid #3a3730;
     padding: 7px 8px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.06em;
 }
 
 QTableWidget#lines::item {

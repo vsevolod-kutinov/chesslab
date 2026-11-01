@@ -98,6 +98,25 @@ def _when(stamp: str | None) -> str:
         return ""
 
 
+STALE_DAYS = 7
+
+
+def freshness(site: str, stamp: str | None, now: datetime | None = None) -> tuple[str, bool]:
+    """Status text for cached site data and whether it is old enough to say so."""
+    if not stamp:
+        return "", False
+    try:
+        when = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return "", False
+    now = now or datetime.now(when.tzinfo)
+    text = f"data from {site} as of {when.strftime('%Y-%m-%d')}"
+    days = (now - when).days
+    if days >= STALE_DAYS:
+        return f"{text} — {days} days old, press Refresh", True
+    return text, False
+
+
 class StatsDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -135,14 +154,14 @@ class StatsDialog(QDialog):
         self.subline.setObjectName("status")
         layout.addWidget(self.subline)
 
-        chart_label = QLabel("RATING BY GAMES IN DATABASE")
+        chart_label = QLabel("Rating by games in database")
         chart_label.setObjectName("heading")
         layout.addWidget(chart_label)
 
         self.chart = RatingChart()
         layout.addWidget(self.chart, 2)
 
-        details_label = QLabel("DETAILS")
+        details_label = QLabel("Details")
         details_label.setObjectName("heading")
         layout.addWidget(details_label)
 
@@ -221,19 +240,16 @@ class StatsDialog(QDialog):
 
         if _is_chesscom(account):
             self._fill_chesscom(account, perf)
-            checked = account.get("checked")
-            self.status.setText(f"data from Chess.com as of {_when(checked)}" if checked else "")
+            self._show_freshness("Chess.com", account.get("checked"))
             return
 
         cached = (account.get("perf_stats") or {}).get(perf)
         if cached:
             self._fill_details(cached)
-            self.status.setText(
-                f'data from Lichess as of {_when(account.get("perf_checked", {}).get(perf))}'
-                if account.get("perf_checked", {}).get(perf) else ""
-            )
+            self._show_freshness("Lichess", account.get("perf_checked", {}).get(perf))
         else:
             self.table.setRowCount(0)
+            self.status.setStyleSheet("")
             self.status.setText(
                 "Press “Refresh” to fetch streaks, "
                 "best wins and world rank."
@@ -265,6 +281,11 @@ class StatsDialog(QDialog):
         self.subline.setText("   ·   ".join(parts))
 
         self.chart.set_points(games_db.rating_series(self.conn, username, perf))
+
+    def _show_freshness(self, site: str, stamp: str | None) -> None:
+        text, stale = freshness(site, stamp)
+        self.status.setText(text)
+        self.status.setStyleSheet(f"color: {theme.SCORE_BAD.name()};" if stale else "")
 
     @staticmethod
     def _site_rating(account: dict, perf: str) -> tuple[int | None, int]:
@@ -397,6 +418,7 @@ class StatsDialog(QDialog):
 
         if _is_chesscom(account):
             # one request brings every mode at once
+            self.status.setStyleSheet("")
             self.status.setText("Asking Chess.com…")
             self._lookup = chesscom.UserLookup()
             self._lookup.found.connect(self._on_chesscom_found)
@@ -404,6 +426,7 @@ class StatsDialog(QDialog):
             self._lookup.start(account["username"])
             return
 
+        self.status.setStyleSheet("")
         self.status.setText(f"Asking Lichess about {self.perf_box.currentText()}…")
         self._lookup = lichess.PerfLookup()
         self._lookup.found.connect(self._on_found)

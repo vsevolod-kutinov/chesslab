@@ -119,9 +119,36 @@ class GameError(Exception):
     pass
 
 
+def known_names(conn: sqlite3.Connection) -> list[str]:
+    """Names already typed into over-the-board games and tournaments, for suggestions:
+    picking one avoids a typo that would split one person into two."""
+    rows = conn.execute(
+        "SELECT white AS n FROM games WHERE service = 'otb' UNION "
+        "SELECT black FROM games WHERE service = 'otb' UNION "
+        "SELECT player FROM tournaments"
+    ).fetchall()
+    return sorted({r["n"] for r in rows if r["n"]}, key=str.lower)
+
+
+_DATE_PATTERNS = ("%Y-%m-%d", "%Y.%m.%d", "%d.%m.%Y")
+
+
+def normalize_date(text: str) -> str | None:
+    """Typed date -> "YYYY-MM-DD"; "" stays ""; None when it is not a real date."""
+    text = (text or "").strip()
+    if not text:
+        return ""
+    for pattern in _DATE_PATTERNS:
+        try:
+            return datetime.strptime(text, pattern).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
+
+
 def _stamp(date: str, order: int) -> int:
     """Game date in milliseconds. The round number separates games on the same day."""
-    for pattern in ("%Y-%m-%d", "%Y.%m.%d", "%d.%m.%Y"):
+    for pattern in _DATE_PATTERNS:
         try:
             moment = datetime.strptime(date.strip(), pattern)
             break

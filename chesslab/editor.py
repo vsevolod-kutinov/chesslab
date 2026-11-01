@@ -101,7 +101,7 @@ class PositionEditor(QDialog):
         side = QVBoxLayout()
         side.setSpacing(theme.gap(3))
 
-        palette_label = QLabel("PIECE")
+        palette_label = QLabel("Piece")
         palette_label.setObjectName("heading")
         side.addWidget(palette_label)
         side.addLayout(self._build_palette())
@@ -124,7 +124,7 @@ class PositionEditor(QDialog):
         turn_row.addWidget(self.turn_box, 1)
         side.addLayout(turn_row)
 
-        castling_label = QLabel("CASTLING")
+        castling_label = QLabel("Castling")
         castling_label.setObjectName("heading")
         side.addWidget(castling_label)
 

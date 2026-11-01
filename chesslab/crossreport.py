@@ -64,7 +64,7 @@ class LinkDialog(QDialog):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
 
-        caption = QLabel("TOURNAMENT LINK")
+        caption = QLabel("Tournament link")
         caption.setObjectName("heading")
         layout.addWidget(caption)
 
@@ -146,7 +146,7 @@ class CrossReportDialog(QDialog):
         layout.setSpacing(theme.gap(3))
 
         meta = self.data["meta"]
-        title = QLabel(meta["name"].upper())
+        title = QLabel(meta["name"])
         title.setObjectName("heading")
         title.setWordWrap(True)
         layout.addWidget(title)
@@ -428,7 +428,7 @@ def _note_card(note: dict) -> QWidget:
     layout.setContentsMargins(14, 10, 14, 12)
     layout.setSpacing(theme.gap(1))
 
-    title = QLabel(note["title"].upper())
+    title = QLabel(note["title"])
     title.setObjectName("heading")
     colour = _TONES.get(note["tone"], theme.TEXT)
     title.setStyleSheet(f"color: {colour.name()};")

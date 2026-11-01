@@ -333,7 +333,7 @@ class WeaknessDialog(QDialog):
         self.spots_table.setColumnWidth(2, 96)
         layout.addWidget(self.spots_table, 2)
 
-        moves_label = QLabel("THEIR MOVES FROM HERE")
+        moves_label = QLabel("Their moves from here")
         moves_label.setObjectName("heading")
         layout.addWidget(moves_label)
 
@@ -453,7 +453,7 @@ class WeaknessDialog(QDialog):
         self.current_line = []
         self.moves_table.setRowCount(0)
         self.board.set_position(chess.Board(), None)
-        self.spot_heading.setText("NO POSITIONS" if self.accounts else "")
+        self.spot_heading.setText("No positions" if self.accounts else "")
         self.spot_path.setText("")
 
     def _update_spot_status(self) -> None:
@@ -557,10 +557,10 @@ class WeaknessDialog(QDialog):
         self.board.set_position(chess.Board(spot.fen), None)
 
         if not spot.line:
-            self.spot_heading.setText("STARTING POSITION")
+            self.spot_heading.setText("Starting position")
             self.spot_path.setText("")
         else:
-            self.spot_heading.setText((spot.name or "unnamed").upper())
+            self.spot_heading.setText(spot.name or "unnamed")
             self.spot_path.setText(_line_text(spot.line))
 
         self._fill_moves(spot)

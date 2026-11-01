@@ -289,7 +289,7 @@ class ExplorerDialog(QDialog):
         self.moves_table.setColumnWidth(3, 96)
         right.addWidget(self.moves_table, 3)
 
-        games_label = QLabel("GAMES FROM HERE")
+        games_label = QLabel("Games from here")
         games_label.setObjectName("heading")
         right.addWidget(games_label)
 
@@ -538,14 +538,14 @@ class ExplorerDialog(QDialog):
         """Name of the position: the reference first, otherwise own games."""
         known = self.book.name_at(board)
         if known is not None:
-            return known.title.upper()
+            return known.title
 
         # the reference has no name — take the most frequent one from own games
         names = Counter(
             f'{e.row["eco"]} {e.row["opening"]}'.strip()
             for e in reached if e.row["opening"]
         ) if self.line else Counter()
-        return names.most_common(1)[0][0].upper() if names else "START OF GAME"
+        return names.most_common(1)[0][0] if names else "Start of game"
 
     def _fill_moves(self) -> None:
         self.moves_table.setRowCount(len(self.moves))
@@ -599,7 +599,7 @@ class ExplorerDialog(QDialog):
             row = entry.row
             opponent = row["black"] if entry.me_white else row["white"]
             cells = [
-                format_date(row["played_at"]),
+                format_date(row["played_at"], row["service"]),
                 "White" if entry.me_white else "Black",
                 str(opponent),
                 entry.sans[depth] if len(entry.sans) > depth else "",

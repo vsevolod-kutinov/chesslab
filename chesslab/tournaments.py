@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
     QComboBox,
+    QCompleter,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -87,6 +88,18 @@ def _pick(combo: QComboBox, value) -> None:
         combo.setCurrentIndex(index)
 
 
+def _name_completer(parent: QWidget) -> QCompleter:
+    conn = games_db.connect()
+    try:
+        names = tournaments_db.known_names(conn)
+    finally:
+        conn.close()
+    completer = QCompleter(names, parent)
+    completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchFlag.MatchContains)
+    return completer
+
+
 def _line_text(sans: list[str]) -> str:
     parts = []
     for index, san in enumerate(sans):
@@ -114,7 +127,7 @@ class TournamentEditDialog(QDialog):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
 
-        kind = QLabel("TOURNAMENT TYPE")
+        kind = QLabel("Tournament type")
         kind.setObjectName("heading")
         layout.addWidget(kind)
 
@@ -139,6 +152,7 @@ class TournamentEditDialog(QDialog):
         self.name_edit.setPlaceholderText("City Championship, stage 3")
         self.player_edit = QLineEdit(row["player"] if row else "")
         self.player_edit.setPlaceholderText("Surname, First name - as in the protocol")
+        self.player_edit.setCompleter(_name_completer(self))
         self.city_edit = QLineEdit(row["place"] if row else "")
         self.city_edit.setPlaceholderText("Prague")
         self.country_edit = QLineEdit(row["country"] if row else "")
@@ -296,6 +310,12 @@ class TournamentEditDialog(QDialog):
         if not self.player_edit.text().strip():
             QMessageBox.warning(self, "ChessLab", "Enter how you are listed in the protocol.")
             return
+        for edit, label in ((self.started_edit, "start"), (self.finished_edit, "end")):
+            if tournaments_db.normalize_date(edit.text()) is None:
+                QMessageBox.warning(self, "ChessLab", f"The {label} date is not a real date. "
+                                    "Use YYYY-MM-DD, e.g. 2026-10-17.")
+                edit.setFocus()
+                return
         self.accept()
 
     def values(self) -> dict:
@@ -305,8 +325,8 @@ class TournamentEditDialog(QDialog):
             "player": self.player_edit.text().strip(),
             "place": self.city_edit.text().strip(),
             "country": self.country_edit.text().strip().upper(),
-            "started": self.started_edit.text().strip(),
-            "finished": self.finished_edit.text().strip(),
+            "started": tournaments_db.normalize_date(self.started_edit.text()) or "",
+            "finished": tournaments_db.normalize_date(self.finished_edit.text()) or "",
             "time_control": self.control_edit.text().strip(),
             "speed": self.speed_combo.currentData(),
             "standing": self.standing_spin.value() or None,
@@ -369,7 +389,7 @@ class GameEntryDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
-        caption = QLabel("WHO, WITH WHAT COLOUR AND HOW IT ENDED")
+        caption = QLabel("Who, with what colour and how it ended")
         caption.setObjectName("heading")
         layout.addWidget(caption)
 
@@ -386,6 +406,7 @@ class GameEntryDialog(QDialog):
         self.elo_spin.setRange(0, 3500)
         self.elo_spin.setSpecialValueText("unknown")
         self.outcome_combo = _combo(OUTCOMES)
+        self.opponent_edit.setCompleter(_name_completer(self))
         self.date_edit = QLineEdit()
         self.date_edit.setPlaceholderText(self.tournament["started"] or "2026-09-10")
 
@@ -397,7 +418,7 @@ class GameEntryDialog(QDialog):
         form.addRow("Date", self.date_edit)
         layout.addLayout(form)
 
-        moves_label = QLabel("MOVES")
+        moves_label = QLabel("Moves")
         moves_label.setObjectName("heading")
         layout.addWidget(moves_label)
 
@@ -530,6 +551,11 @@ class GameEntryDialog(QDialog):
         if not self.opponent_edit.text().strip():
             QMessageBox.warning(self, "ChessLab", "Who was the opponent?")
             return
+        if tournaments_db.normalize_date(self.date_edit.text()) is None:
+            QMessageBox.warning(self, "ChessLab", "The date is not a real date. "
+                                "Use YYYY-MM-DD, e.g. 2026-10-17.")
+            self.date_edit.setFocus()
+            return
         self.accept()
 
     def values(self) -> dict:
@@ -539,7 +565,7 @@ class GameEntryDialog(QDialog):
             "opponent": self.opponent_edit.text().strip(),
             "opponent_elo": self.elo_spin.value() or None,
             "points": self.outcome_combo.currentData(),
-            "date": self.date_edit.text().strip(),
+            "date": tournaments_db.normalize_date(self.date_edit.text()) or "",
             "sans": self.sans,
         }
 
@@ -582,7 +608,7 @@ class ReportDialog(QDialog):
         self.totals.setStyleSheet("padding: 8px 0;")
         layout.addWidget(self.totals)
 
-        games_label = QLabel("GAMES")
+        games_label = QLabel("Games")
         games_label.setObjectName("heading")
         layout.addWidget(games_label)
 
@@ -593,7 +619,7 @@ class ReportDialog(QDialog):
         self.games_table.doubleClicked.connect(self._open_selected)
         layout.addWidget(self.games_table, 3)
 
-        openings_label = QLabel("OPENINGS")
+        openings_label = QLabel("Openings")
         openings_label.setObjectName("heading")
         layout.addWidget(openings_label)
 
@@ -773,7 +799,7 @@ class TournamentsDialog(QDialog):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
 
-        caption = QLabel("TOURNAMENTS I PLAYED")
+        caption = QLabel("Tournaments I played")
         caption.setObjectName("heading")
         layout.addWidget(caption)
 

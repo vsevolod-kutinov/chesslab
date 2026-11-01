@@ -349,7 +349,7 @@ class MainWindow(QMainWindow):
 
         # Panel header: the big evaluation is the one number you watch
         # constantly, so it should be the most prominent.
-        self._engine_name = "ENGINE"
+        self._engine_name = "Engine"
         self.eval_label = QLabel("—")
         self.eval_label.setObjectName("eval")
         self.eval_label.setFont(theme.tabular(self.font(), 26, bold=True))
@@ -379,7 +379,7 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(self._build_engine_controls())
 
-        moves_label = QLabel("MOVES")
+        moves_label = QLabel("Moves")
         moves_label.setObjectName("heading")
         layout.addWidget(moves_label)
 
@@ -1316,7 +1316,7 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _on_engine_ready(self, name: str) -> None:
-        self._engine_name = name.upper()
+        self._engine_name = name
         self._update_engine_header()
 
     @Slot(str)

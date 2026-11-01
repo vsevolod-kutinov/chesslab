@@ -36,7 +36,7 @@ RESULTS = [("", "any result"), ("win", "wins"), ("loss", "losses"),
            ("draw", "draws")]
 
 # how a game source is labelled; otb = a game from a scoresheet, entered by hand
-SERVICE_TEXT = {"lichess": "Lichess", "chess.com": "Chess.com", "otb": "tournament"}
+SERVICE_TEXT = {"lichess": "Lichess", "chess.com": "Chess.com", "otb": "Over the board"}
 SERVICE_FILTER = [("", "all sites"), ("lichess", "Lichess"),
                   ("chess.com", "Chess.com"), ("otb", "tournaments")]
 
@@ -252,7 +252,7 @@ class GamesDialog(QDialog):
 
             outcome = outcome_text(game["winner"], white_is_owner)
             cells = [
-                format_date(game["played_at"]),
+                format_date(game["played_at"], game["service"]),
                 outcome,
                 "White" if white_is_owner else "Black",
                 str(opponent),
@@ -392,10 +392,11 @@ class GamesDialog(QDialog):
         super().closeEvent(event)
 
 
-def format_date(ms: int) -> str:
+def format_date(ms: int, service: str = "") -> str:
+    """Date and time; over-the-board games have no real time (the stamp only orders rounds)."""
     if not ms:
         return "—"
-    return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M")
+    return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d" if service == "otb" else "%Y-%m-%d %H:%M")
 
 
 def outcome_text(winner: str, white_is_owner: bool) -> str:
