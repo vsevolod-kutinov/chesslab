@@ -58,12 +58,13 @@ over-the-board tournaments.
   performance, strength of schedule, and a choice of how to rate unrated
   players (as listed, fixed value, or iterated performance).
 - Prep tab (Ctrl+P switches Analysis / Prep, Ctrl+J opens it): prepare for a
-  league game step by step with Claude Code — who the team fields on your board,
+  league game step by step with Claude Code: who the team fields on your board,
   player cards (FIDE profile, rating trend, games in this event), their openings
   from the chess-results game database, an engine pass over their games, and
   lines that fit your own repertoire. Moves in answers open on the board; preps
   are saved. Tools: `python -m chesslab.prep lineup|card|games|analyse|mine`.
-  Needs `claude` on PATH.
+  Needs `claude` on PATH, logged in. How it works, setup and limits:
+  [docs/PREP.md](docs/PREP.md).
 
 ## Installation
 
@@ -108,7 +109,9 @@ Everything is stored locally in `~/.local/share/chesslab/`
 (`%APPDATA%\ChessLab` on Windows):
 `games.sqlite3` (games, analysis, tournaments) and `accounts.json`
 (account list, mode 600). Nothing is sent anywhere except requests to
-Lichess, Chess.com, FIDE and chess-results for the data you ask for.
+Lichess, Chess.com, FIDE and chess-results for the data you ask for. The
+Prep tab is the exception: it runs Claude Code, which sends your messages to
+Anthropic (see [docs/PREP.md](docs/PREP.md#privacy)).
 
 ## Keyboard shortcuts
 
@@ -132,6 +135,8 @@ Lichess, Chess.com, FIDE and chess-results for the data you ask for.
 | Ctrl+T | my tournaments |
 | Ctrl+Y | rating progress |
 | Ctrl+I | account statistics (Lichess, Chess.com) |
+| Ctrl+P | switch between Analysis and Prep |
+| Ctrl+J | new opponent prep |
 | right mouse | arrow (drag) or circle (click); Shift / Ctrl / Alt for colour |
 
 ## Project layout
@@ -154,6 +159,8 @@ Lichess, Chess.com, FIDE and chess-results for the data you ask for.
 | `chesslab/eco.py`, `data/eco.tsv` | ECO opening table |
 | `chesslab/tournaments.py`, `tournaments_db.py` | OTB tournaments |
 | `chesslab/fide.py`, `chessresults.py`, `crosstable.py`, `crossreport.py` | FIDE and chess-results import, crosstable analysis |
+| `chesslab/material.py`, `captured.py` | captured pieces and material lead next to the player names |
+| `chesslab/prep/` | Prep tab: chat panel, Claude Code bridge, player cards, and the `python -m chesslab.prep` commands ([docs/PREP.md](docs/PREP.md)) |
 | `chesslab/theme.py` | palette, spacing, fonts, QSS — all styling lives here |
 | `tools/` | ECO table builder, sound generator, command-line opening analysis |
 
