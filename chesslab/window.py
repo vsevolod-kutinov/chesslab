@@ -36,9 +36,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import __version__, chesscom, games_db, lichess, report, storage, theme
+from . import __version__, chesscom, games_db, lichess, material, report, storage, theme
 from .accounts import AccountsDialog
 from .board import BoardWidget
+from .captured import CapturedPieces
 from .prep.panel import PrepPanel
 from .crossreport import open_report as open_cross_report
 from .editor import PositionEditor
@@ -187,9 +188,11 @@ class MainWindow(QMainWindow):
         self.graph.setVisible(False)
         self.graph.ply_clicked.connect(self._goto)
 
-        board_column.addWidget(self.top_player)
+        self.top_captured = CapturedPieces()
+        self.bottom_captured = CapturedPieces()
+        board_column.addLayout(_caption_row(self.top_player, self.top_captured))
         board_column.addWidget(board_area, 1)
-        board_column.addWidget(self.bottom_player)
+        board_column.addLayout(_caption_row(self.bottom_player, self.bottom_captured))
         board_column.addWidget(self.graph)
 
         central = QWidget()
@@ -240,8 +243,9 @@ class MainWindow(QMainWindow):
 
     def _align_to_board(self, left: int, right: int) -> None:
         """Captions and graph match the board width exactly, not the whole column."""
-        self.top_player.setContentsMargins(left, 0, right, 0)
-        self.bottom_player.setContentsMargins(left, 0, right, 0)
+        # no right margin on the names: the captured pieces sit right after them
+        self.top_player.setContentsMargins(left, 0, 0, 0)
+        self.bottom_player.setContentsMargins(left, 0, 0, 0)
         self.graph.setContentsMargins(left, 0, right, 0)
 
     def _build_menu(self) -> None:
@@ -652,6 +656,9 @@ class MainWindow(QMainWindow):
         top_color = chess.WHITE if self.board_widget.flipped else chess.BLACK
         self.top_player.setText(self._player_text(top_color, board))
         self.bottom_player.setText(self._player_text(not top_color, board))
+        for widget, color in ((self.top_captured, top_color), (self.bottom_captured, not top_color)):
+            _, points = material.imbalance(board, color)
+            widget.set_material(material.captured(board, color), not color, points)
 
     def _player_text(self, color: bool, board: chess.Board) -> str:
         info = self.players.get(color) or {}
@@ -1407,6 +1414,16 @@ def _bare_table(columns: int, name: str) -> QTableWidget:
     table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
     table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     return table
+
+
+def _caption_row(label: QLabel, captured: QWidget) -> QHBoxLayout:
+    """Player caption with the captured pieces right after the name."""
+    row = QHBoxLayout()
+    row.setSpacing(theme.gap(3))
+    row.addWidget(label)
+    row.addWidget(captured, 0, Qt.AlignmentFlag.AlignVCenter)
+    row.addStretch(1)
+    return row
 
 
 def _add(window, menu, title: str, slot, shortcut=None) -> QAction:
